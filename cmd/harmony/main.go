@@ -107,7 +107,7 @@ var (
 	beaconSyncFreq = flag.Int("beacon_sync_freq", 60, "unit in seconds")
 
 	// blockPeriod indicates the how long the leader waits to propose a new block.
-	blockPeriod    = flag.Int("block_period", 8, "how long in second the leader waits to propose a new block.")
+	blockPeriod    = flag.Int("block_period", 1, "how long in second the leader waits to propose a new block.")
 	leaderOverride = flag.Bool("leader_override", false, "true means override the default leader role and acts as validator")
 	// shardID indicates the shard ID of this node
 	shardID            = flag.Int("shard_id", -1, "the shard ID of this node")
@@ -329,6 +329,8 @@ func setupConsensusAndNode(nodeConfig *nodeconfig.ConfigType) *node.Node {
 	chainDBFactory := &shardchain.LDBFactory{RootDir: nodeConfig.DBDir}
 	currentNode := node.New(myHost, currentConsensus, chainDBFactory, *isArchival)
 
+	fmt.Printf("%+v", *networkType)
+
 	switch {
 	case *networkType == nodeconfig.Localnet:
 		epochConfig := core.ShardingSchedule.InstanceForEpoch(ethCommon.Big0)
@@ -384,7 +386,7 @@ func setupConsensusAndNode(nodeConfig *nodeconfig.ConfigType) *node.Node {
 	currentNode.NodeConfig.ConsensusPriKey = nodeConfig.ConsensusPriKey
 
 	// Setup block period for currentNode.
-	currentNode.BlockPeriod = time.Duration(*blockPeriod) * time.Second
+	currentNode.BlockPeriod = time.Duration(1) * time.Second
 
 	// TODO: Disable drand. Currently drand isn't functioning but we want to compeletely turn it off for full protection.
 	// Enable it back after mainnet.

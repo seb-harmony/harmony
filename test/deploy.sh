@@ -199,10 +199,15 @@ if [ "$DOTEST" == "true" ]; then
    i=1
    echo "launching wallet cross shard transfer test"
    while [ $i -le $NUM_TEST ]; do
-      "${ROOT}/bin/wallet" -p local transfer --from $ACC1 --to $ACC3 --shardID 0 --toShardID 1 --amount 0.1 --pass pass:"" 2>&1 | tee -a "${LOG_FILE}"
-      sleep 20
-      "${ROOT}/bin/wallet" -p local transfer --from $ACC2 --to $ACC3 --shardID 1 --toShardID 0 --amount 0.1 --pass pass:"" 2>&1 | tee -a "${LOG_FILE}"
-      sleep 20
+
+       for i in {1..10000}
+       do
+
+      "${ROOT}/bin/wallet" -p local transfer --from $ACC1 --to $ACC3 --shardID 0 --toShardID 1 --amount 0.00001 --pass pass:"" 2>&1 | tee -a "${LOG_FILE}"
+      "${ROOT}/bin/wallet" -p local transfer --from $ACC1 --to $ACC3 --shardID 0 --toShardID 2 --amount 0.00001 --pass pass:"" 2>&1 | tee -a "${LOG_FILE}"
+      done
+
+      sleep 1
       i=$((i+1))
    done
    echo "waiting for the result"

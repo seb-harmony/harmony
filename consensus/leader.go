@@ -36,7 +36,9 @@ func (consensus *Consensus) announce(block *types.Block) {
 
 	consensus.block = encodedBlock
 	consensus.blockHeader = encodedBlockHeader
-	networkMessage, err := consensus.construct(msg_pb.MessageType_ANNOUNCE, nil)
+	networkMessage, err := consensus.construct(
+		msg_pb.MessageType_ANNOUNCE, nil, nil,
+	)
 	if err != nil {
 		consensus.getLogger().Err(err).
 			Str("message-type", msg_pb.MessageType_ANNOUNCE.String()).

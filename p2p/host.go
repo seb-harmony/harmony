@@ -15,6 +15,7 @@ import (
 	libp2p "github.com/libp2p/go-libp2p"
 	libp2p_crypto "github.com/libp2p/go-libp2p-core/crypto"
 	libp2p_host "github.com/libp2p/go-libp2p-core/host"
+	libp2p_metrics "github.com/libp2p/go-libp2p-core/metrics"
 	libp2p_peer "github.com/libp2p/go-libp2p-core/peer"
 	libp2p_peerstore "github.com/libp2p/go-libp2p-core/peerstore"
 	libp2p_pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -34,6 +35,11 @@ type Host interface {
 	// SendMessageToGroups sends a message to one or more multicast groups.
 	SendMessageToGroups(groups []nodeconfig.GroupID, msg []byte) error
 	AllTopics() []*libp2p_pubsub.Topic
+
+	// libp2p.metrics related
+	GetBandwidthTotals() libp2p_metrics.Stats
+	LogRecvMessage(msg []byte)
+	ResetMetrics()
 }
 
 // Peer is the object for a p2p peer (node)
@@ -88,14 +94,18 @@ func NewHost(self *Peer, key libp2p_crypto.PrivKey) (Host, error) {
 
 	self.PeerID = p2pHost.ID()
 	subLogger := utils.Logger().With().Str("hostID", p2pHost.ID().Pretty()).Logger()
+
+	newMetrics := libp2p_metrics.NewBandwidthCounter()
+
 	// has to save the private key for host
 	h := &HostV2{
-		h:      p2pHost,
-		joiner: topicJoiner{pubsub},
-		joined: map[string]*libp2p_pubsub.Topic{},
-		self:   *self,
-		priKey: key,
-		logger: &subLogger,
+		h:       p2pHost,
+		joiner:  topicJoiner{pubsub},
+		joined:  map[string]*libp2p_pubsub.Topic{},
+		self:    *self,
+		priKey:  key,
+		logger:  &subLogger,
+		metrics: newMetrics,
 	}
 
 	if err != nil {
@@ -131,6 +141,8 @@ type HostV2 struct {
 	lock   sync.Mutex
 	// logger
 	logger *zerolog.Logger
+	// metrics
+	metrics *libp2p_metrics.BandwidthCounter
 }
 
 func (host *HostV2) getTopic(topic string) (*libp2p_pubsub.Topic, error) {
@@ -150,6 +162,7 @@ func (host *HostV2) getTopic(topic string) (*libp2p_pubsub.Topic, error) {
 // It returns a nil error if and only if it has succeeded to schedule the given
 // message for sending.
 func (host *HostV2) SendMessageToGroups(groups []nodeconfig.GroupID, msg []byte) (err error) {
+
 	for _, group := range groups {
 		t, e := host.getTopic(string(group))
 		if e != nil {
@@ -161,7 +174,14 @@ func (host *HostV2) SendMessageToGroups(groups []nodeconfig.GroupID, msg []byte)
 			err = e
 			continue
 		}
+		// log out-going metrics
+		host.metrics.LogSentMessage(int64(len(msg)))
 	}
+	host.logger.Info().
+		Int64("TotalOut", host.GetBandwidthTotals().TotalOut).
+		Float64("RateOut", host.GetBandwidthTotals().RateOut).
+		Msg("[metrics][p2p] traffic out in bytes")
+
 	return err
 }
 
@@ -215,6 +235,21 @@ func (host *HostV2) GetP2PHost() libp2p_host.Host {
 // GetPeerCount ...
 func (host *HostV2) GetPeerCount() int {
 	return host.h.Peerstore().Peers().Len()
+}
+
+// GetBandwidthTotals returns total bandwidth of a node
+func (host *HostV2) GetBandwidthTotals() libp2p_metrics.Stats {
+	return host.metrics.GetBandwidthTotals()
+}
+
+// LogRecvMessage logs received message on node
+func (host *HostV2) LogRecvMessage(msg []byte) {
+	host.metrics.LogRecvMessage(int64(len(msg)))
+}
+
+// ResetMetrics resets metrics counters
+func (host *HostV2) ResetMetrics() {
+	host.metrics.Reset()
 }
 
 // ConnectHostPeer connects to peer host
